@@ -1,6 +1,7 @@
 from sqlalchemy.orm import Session
 
 from repositories.document_repository import DocumentRepository
+from utils.errors import NotFoundError
 
 
 class DocumentService:
@@ -33,7 +34,7 @@ class DocumentService:
         )
 
         if not document or document.user_id != user_id:
-            raise ValueError("Document not found")
+            raise NotFoundError("Document not found")
 
         return document
 

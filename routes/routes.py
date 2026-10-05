@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends
 from controllers.health_controller import health_check
-from middleware.auth import require_auth, require_role
+from middleware.auth import require_auth, require_role, require_tier
 
 router = APIRouter()
 
@@ -21,6 +21,16 @@ async def admin_only_route(
 ):
     return {
         "message": "You are an admin",
+        "user_id": str(user.id),
+        "email": user.email,
+    }
+
+@router.get("/pro-only")
+async def pro_only_route(
+    user=Depends(require_tier("pro")),
+):
+    return {
+        "message": "You have pro tier access",
         "user_id": str(user.id),
         "email": user.email,
     }

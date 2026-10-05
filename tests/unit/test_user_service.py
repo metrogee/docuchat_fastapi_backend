@@ -3,6 +3,7 @@ from unittest.mock import Mock
 import pytest
 
 from services.user_service import UserService
+from utils.errors import ConflictError
 
 
 def test_get_user_by_email():
@@ -60,7 +61,7 @@ def test_create_user_rejects_duplicate_email():
     service.repository = repository
 
     with pytest.raises(
-        ValueError,
+        ConflictError,
         match="Email already registered",
     ):
         service.create_user(

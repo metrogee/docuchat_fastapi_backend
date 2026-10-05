@@ -45,5 +45,11 @@ jobs:
       - name: Run database migrations
         run: alembic upgrade head
 
-      - name: Run tests
-        run: pytest -v
+      - name: Run tests with coverage
+        run: pytest -v --cov=. --cov-report=term --cov-report=html
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: htmlcov/

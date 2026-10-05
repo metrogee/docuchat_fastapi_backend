@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 
 from repositories.user_repository import UserRepository
-
+from utils.errors import ConflictError
 
 class UserService:
 
@@ -31,7 +31,7 @@ class UserService:
         )
 
         if existing_user:
-            raise ValueError("Email already registered")
+            raise ConflictError("Email already registered")
 
         return self.repository.create(
             db,

@@ -8,6 +8,15 @@ from utils.password import hash_password, verify_password
 from utils.jwt import create_access_token, create_refresh_token, verify_token
 from utils.token import hash_refresh_token
 from utils.errors import ConflictError, UnauthorizedError
+from src.events import (
+    event_emitter,
+    EVENT_USER_REGISTERED,
+    EVENT_LOGGED_IN,
+    EVENT_LOGGED_OUT,
+    EVENT_TOKEN_REFRESHED,
+    EVENT_LOGIN_FAILED,
+)
+
 
 
 class AuthService:
@@ -56,6 +65,12 @@ class AuthService:
             expires_at,
         )
 
+        event_emitter.emit(
+            EVENT_USER_REGISTERED,
+            user_id=user.id,
+            email=user.email,
+        )
+
         return {
             "user": user,
             "access_token": access_token,
@@ -71,6 +86,10 @@ class AuthService:
         user = self.user_repository.find_by_email(db, email)
 
         if not user or not verify_password(password, user.password_hash):
+            event_emitter.emit(
+                EVENT_LOGIN_FAILED,
+                email=email,
+            )
             raise UnauthorizedError("Invalid email or password")
 
         access_token = create_access_token(user.id)
@@ -85,6 +104,12 @@ class AuthService:
             user.id,
             refresh_token_hash,
             expires_at,
+        )
+
+        event_emitter.emit(
+            EVENT_LOGGED_IN,
+            user_id=user.id,
+            email=user.email,
         )
 
         return {
@@ -103,7 +128,7 @@ class AuthService:
         user_id = payload.get("sub")
 
         if not user_id:
-            raise ValueError("Invalid refresh token")
+            raise UnauthorizedError("Invalid refresh token")
 
         refresh_token_hash = hash_refresh_token(refresh_token)
 
@@ -113,14 +138,14 @@ class AuthService:
         )
 
         if not stored_token:
-            raise ValueError("Invalid refresh token")
+            raise UnauthorizedError("Invalid refresh token")
 
         if stored_token.expires_at <= datetime.now(timezone.utc):
             self.refresh_token_repository.delete_by_token_hash(
                 db,
                 refresh_token_hash,
             )
-            raise ValueError("Refresh token expired")
+            raise UnauthorizedError("Refresh token expired")
 
         self.refresh_token_repository.delete_by_token_hash(
             db,
@@ -141,17 +166,27 @@ class AuthService:
             new_expires_at,
         )
 
+        event_emitter.emit(
+            EVENT_TOKEN_REFRESHED,
+            user_id=user_id,
+        )
+
         return {
             "access_token": new_access_token,
             "refresh_token": new_refresh_token,
         }
-
+    
     def logout(self, db: Session, refresh_token: str):
         refresh_token_hash = hash_refresh_token(refresh_token)
 
         self.refresh_token_repository.delete_by_token_hash(
             db,
             refresh_token_hash,
+        )
+
+        event_emitter.emit(
+            EVENT_LOGGED_OUT,
+            refresh_token_hash=refresh_token_hash,
         )
 
         return {"message": "Logged out successfully"}

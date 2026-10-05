@@ -1,3 +1,6 @@
+from src.events import event_emitter, EVENT_LOGIN_FAILED
+
+
 def test_register_successfully(client):
     response = client.post(
         "/api/v1/auth/register",
@@ -22,7 +25,6 @@ def test_register_successfully(client):
     assert "password_hash" not in data["user"]
 
 
-
 def test_register_with_invalid_email(client):
     response = client.post(
         "/api/v1/auth/register",
@@ -38,6 +40,7 @@ def test_register_with_invalid_email(client):
     data = response.json()
 
     assert "detail" in data
+
 
 def test_register_duplicate_email(client):
     user_data = {
@@ -59,6 +62,7 @@ def test_register_duplicate_email(client):
     )
 
     assert second_response.status_code == 409
+
 
 def test_login_successfully(client):
     user_data = {
@@ -92,6 +96,7 @@ def test_login_successfully(client):
 
     assert data["user"]["email"] == user_data["email"]
 
+
 def test_login_with_wrong_password(client):
     user_data = {
         "name": "Wrong Password User",
@@ -105,6 +110,13 @@ def test_login_with_wrong_password(client):
     )
 
     assert register_response.status_code == 201
+
+    failed_login_events = []
+
+    event_emitter.on(
+        EVENT_LOGIN_FAILED,
+        lambda email: failed_login_events.append(email),
+    )
 
     login_response = client.post(
         "/api/v1/auth/login",
@@ -121,6 +133,8 @@ def test_login_with_wrong_password(client):
     assert data["success"] is False
     assert data["error"]["code"] == "UNAUTHORIZED"
     assert data["error"]["message"] == "Invalid email or password"
+
+    assert failed_login_events == [user_data["email"]]
 
 
 def test_login_with_nonexistent_email(client):
@@ -180,5 +194,21 @@ def test_protected_route_with_valid_token(client):
 
     assert data["message"] == "You are authenticated"
 
+def test_event_listener_error_does_not_stop_other_listeners():
+        results = []
 
-    
+        def failing_listener():
+            results.append("first")
+            raise Exception("Listener failed")
+
+        def successful_listener():
+            results.append("second")
+
+        test_event = "TEST_EVENT"
+
+        event_emitter.on(test_event, failing_listener)
+        event_emitter.on(test_event, successful_listener)
+
+        event_emitter.emit(test_event)
+
+        assert results == ["first", "second"]  

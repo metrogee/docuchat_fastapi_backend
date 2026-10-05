@@ -53,3 +53,14 @@ def require_role(required_role: str):
 
         return user
     return role_checker
+
+def require_tier(required_tier: str):
+    async def tier_checker(
+        user=Depends(require_auth),
+    ):
+        if user.tier != required_tier:
+            raise ForbiddenError("Insufficient tier permissions")
+
+        return user
+
+    return tier_checker
