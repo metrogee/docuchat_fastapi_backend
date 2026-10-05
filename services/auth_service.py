@@ -7,6 +7,7 @@ from repositories.refresh_token_repository import RefreshTokenRepository
 from utils.password import hash_password, verify_password
 from utils.jwt import create_access_token, create_refresh_token, verify_token
 from utils.token import hash_refresh_token
+from utils.errors import ConflictError, UnauthorizedError
 
 
 class AuthService:
@@ -28,7 +29,7 @@ class AuthService:
         )
 
         if existing_user:
-            raise ValueError("Email already registered")
+            raise ConflictError("Email already registered")
 
         password_hash = hash_password(password)
 
@@ -70,7 +71,7 @@ class AuthService:
         user = self.user_repository.find_by_email(db, email)
 
         if not user or not verify_password(password, user.password_hash):
-            raise ValueError("Invalid email or password")
+            raise UnauthorizedError("Invalid email or password")
 
         access_token = create_access_token(user.id)
         refresh_token = create_refresh_token(user.id)
@@ -145,13 +146,12 @@ class AuthService:
             "refresh_token": new_refresh_token,
         }
 
-    try:
-        auth_service.refresh(
-            db=db,
-            refresh_token=old_refresh_token,
+    def logout(self, db: Session, refresh_token: str):
+        refresh_token_hash = hash_refresh_token(refresh_token)
+
+        self.refresh_token_repository.delete_by_token_hash(
+            db,
+            refresh_token_hash,
         )
 
-        print("ERROR: Old refresh token was accepted!")
-
-    except Exception as error:
-        print("Old refresh token rejected:", error)   
+        return {"message": "Logged out successfully"}

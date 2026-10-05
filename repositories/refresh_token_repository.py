@@ -40,16 +40,17 @@ class RefreshTokenRepository:
         db: Session,
         token_hash: str,
     ):
-        refresh_token = (
+        deleted_count = (
             db.query(RefreshToken)
             .filter(RefreshToken.token == token_hash)
-            .first()
+            .delete(
+                synchronize_session=False
+            )
         )
 
-        if not refresh_token:
-            return None
-
-        db.delete(refresh_token)
         db.commit()
 
-        return refresh_token
+        if deleted_count == 0:
+            return None
+
+        return True

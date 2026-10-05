@@ -1,5 +1,12 @@
 from fastapi import FastAPI, Depends
-from routes.routes import router
+from utils.errors import AppError
+from middleware.error_handler import (
+    app_error_handler,
+    unexpected_error_handler,
+)
+from routes.routes import router    
+from routes.auth_routes import router as auth_router
+from routes.api_router import api_router
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -9,8 +16,21 @@ from database.database import get_db
 
 app = FastAPI(title="Docuchat Backend", version="1.0.0")
 
+app.add_exception_handler(
+    AppError,
+    app_error_handler,
+)
+
+app.add_exception_handler(
+    Exception,
+    unexpected_error_handler,
+)
+
 # Register application routes(telling the server to use the routes that have been created somewhere)
-app.include_router(router)
+api_router.include_router(router)
+api_router.include_router(auth_router)
+
+app.include_router(api_router)
 
 @app.get("/")
 def home():
@@ -33,34 +53,26 @@ def database_test(
 
 
 
-# @app.get("/users/{user_id}")
-# def get_user(
-#     user_id: str,
-#     db: Session = Depends(get_db),
-# ):
-#     user = user_repository.find_by_id(
-#         db,
-#         user_id,
-#     )
+@app.get("/users/{user_id}")
+def get_user(
+    user_id: str,
+    db: Session = Depends(get_db),
+):
+    user = user_repository.find_by_id(
+        db,
+        user_id,
+    )
 
-#     if not user:
-#         return {
-#             "message": "User not found"
-#         }
+    if not user:
+        return {
+            "message": "User not found"
+        }
 
-#     return {
-#         "id": user.id,
-#         "name": user.name,
-#         "email": user.email,
-#     }
-
-
-
-
-
-
-
-
+    return {
+        "id": user.id,
+        "name": user.name,
+        "email": user.email,
+    }
 
 
 if __name__ == "__main__":
