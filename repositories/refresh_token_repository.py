@@ -4,13 +4,14 @@ from database.models import RefreshToken
 
 
 class RefreshTokenRepository:
-
+    
     def create(
         self,
         db: Session,
         user_id: str,
         token_hash: str,
         expires_at,
+        commit: bool = True,
     ):
         refresh_token = RefreshToken(
             user_id=user_id,
@@ -19,10 +20,14 @@ class RefreshTokenRepository:
         )
 
         db.add(refresh_token)
-        db.commit()
-        db.refresh(refresh_token)
+        db.flush()
+
+        if commit:
+            db.commit()
+            db.refresh(refresh_token)
 
         return refresh_token
+
 
     def find_by_token_hash(
         self,

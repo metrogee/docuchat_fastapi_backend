@@ -26,10 +26,7 @@ app.add_exception_handler(
     unexpected_error_handler,
 )
 
-# Register application routes(telling the server to use the routes that have been created somewhere)
-api_router.include_router(router)
-api_router.include_router(auth_router)
-
+# Register all application routes
 app.include_router(api_router)
 
 @app.get("/")

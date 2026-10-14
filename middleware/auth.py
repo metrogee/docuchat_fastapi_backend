@@ -7,6 +7,7 @@ from database.database import get_db
 from repositories.user_repository import UserRepository
 from utils.jwt import verify_token
 from utils.errors import UnauthorizedError, ForbiddenError
+from rbac.service import get_user_permissions
 
 security = HTTPBearer()
 
@@ -64,3 +65,20 @@ def require_tier(required_tier: str):
         return user
 
     return tier_checker
+
+def require_permission(*required_permissions: str):
+    async def permission_checker(
+        user=Depends(require_auth),
+        db: Session = Depends(get_db),
+    ):
+        user_permissions = get_user_permissions(user.id, db)
+
+        if not all(
+            permission in user_permissions
+            for permission in required_permissions
+        ):
+            raise ForbiddenError("Insufficient permissions")
+
+        return user
+
+    return permission_checker

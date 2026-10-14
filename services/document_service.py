@@ -2,7 +2,7 @@ from sqlalchemy.orm import Session
 
 from repositories.document_repository import DocumentRepository
 from utils.errors import NotFoundError
-
+from rbac.service import get_user_permissions
 
 class DocumentService:
     def __init__(self):
@@ -33,8 +33,14 @@ class DocumentService:
             document_id=document_id,
         )
 
-        if not document or document.user_id != user_id:
+        if not document:
             raise NotFoundError("Document not found")
+
+        if document.user_id != user_id:
+            permissions = get_user_permissions(user_id, db)
+
+            if "users:manage" not in permissions:
+                raise NotFoundError("Document not found")
 
         return document
 

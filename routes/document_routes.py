@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from uuid import UUID
 
 from database.database import get_db
-from middleware.auth import require_auth
+from middleware.auth import require_permission
 from schemas.document import (
     CreateDocumentRequest,
     DocumentResponse,
@@ -24,7 +24,7 @@ document_service = DocumentService()
 )
 async def create_document(
     request: CreateDocumentRequest,
-    user=Depends(require_auth),
+    user=Depends(require_permission("documents:create")),
     db: Session = Depends(get_db),
 ):
     document = document_service.create_document(
@@ -49,7 +49,7 @@ async def list_documents(
         alias="status",
         pattern="^(pending|processing|ready|failed)$",
     ),
-    user=Depends(require_auth),
+    user=Depends(require_permission("documents:read")),
     db: Session = Depends(get_db),
 ):
     return document_service.list_documents(
@@ -67,7 +67,7 @@ async def list_documents(
 )
 async def get_document(
     document_id: UUID,
-    user=Depends(require_auth),
+    user=Depends(require_permission("documents:read")),
     db: Session = Depends(get_db),
 ):
     try:
@@ -88,7 +88,7 @@ async def get_document(
 )
 async def delete_document(
     document_id: UUID,
-    user=Depends(require_auth),
+    user=Depends(require_permission("documents:delete")),
     db: Session = Depends(get_db),
 ):
     try:

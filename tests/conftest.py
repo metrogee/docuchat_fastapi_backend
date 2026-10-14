@@ -47,6 +47,7 @@ def clean_test_database():
             text(
                 """
                 TRUNCATE TABLE
+                    audit_logs,
                     documents,
                     refresh_tokens,
                     users
@@ -57,3 +58,11 @@ def clean_test_database():
         )
 
     yield
+
+@pytest.fixture
+def test_db():
+    db = TestSessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()

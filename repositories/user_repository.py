@@ -40,6 +40,7 @@ class UserRepository:
         name: str,
         email: str,
         password_hash: str,
+        commit: bool = True,
     ):
         user = User(
             name=name,
@@ -48,10 +49,14 @@ class UserRepository:
         )
 
         db.add(user)
-        db.commit()
-        db.refresh(user)
+        db.flush()
+
+        if commit:
+            db.commit()
+            db.refresh(user)
 
         return user
+
 
     def update_by_id(
         self,

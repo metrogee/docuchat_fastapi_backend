@@ -1,3 +1,6 @@
+from sqlalchemy import select
+from database.models import Role, UserRole
+
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session
@@ -42,34 +45,75 @@ class AuthService:
 
         password_hash = hash_password(password)
 
-        user = self.user_repository.create(
-            db,
-            name,
-            email,
-            password_hash,
-        )
+        
+        try:
+            user = self.user_repository.create(
+                db,
+                name,
+                email,
+                password_hash,
+                commit=False,
+            )
 
-        access_token = create_access_token(user.id)
-        refresh_token = create_refresh_token(user.id)
+            default_role = db.execute(
+                select(Role).where(
+                    Role.is_default.is_(True)
+                )
+            ).scalar_one_or_none()
 
-        refresh_token_hash = hash_refresh_token(
-            refresh_token
-        )
+            if default_role is None:
+                raise RuntimeError(
+                    "Default role has not been configured"
+                )
 
-        expires_at = datetime.now(timezone.utc) + timedelta(days=7)
+            db.add(
+                UserRole(
+                    user_id=user.id,
+                    role_id=default_role.id,
+                )
+            )
 
-        refresh_token_record = self.refresh_token_repository.create(
-            db,
-            user.id,
-            refresh_token_hash,
-            expires_at,
-        )
+            db.flush()
+
+            access_token = create_access_token(user.id)
+            refresh_token = create_refresh_token(user.id)
+
+            refresh_token_hash = hash_refresh_token(
+                refresh_token
+            )
+
+            expires_at = (
+                datetime.now(timezone.utc)
+                + timedelta(days=7)
+            )
+
+            self.refresh_token_repository.create(
+                db,
+                user.id,
+                refresh_token_hash,
+                expires_at,
+                commit=False,
+            )
+
+            db.commit()
+            db.refresh(user)
+
+        except Exception:
+            db.rollback()
+            raise
 
         event_emitter.emit(
             EVENT_USER_REGISTERED,
             user_id=user.id,
             email=user.email,
         )
+
+        return {
+            "user": user,
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+        }
+
 
         return {
             "user": user,
