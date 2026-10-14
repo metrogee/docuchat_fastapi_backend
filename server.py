@@ -1,3 +1,4 @@
+import src.document_events  # Registers document event listeners
 from fastapi import FastAPI, Depends
 from utils.errors import AppError
 from middleware.error_handler import (

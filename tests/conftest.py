@@ -47,6 +47,10 @@ def clean_test_database():
             text(
                 """
                 TRUNCATE TABLE
+                    messages,
+                    conversations,
+                    document_chunks,
+                    usage_logs,
                     audit_logs,
                     documents,
                     refresh_tokens,

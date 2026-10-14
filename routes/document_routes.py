@@ -10,6 +10,7 @@ from schemas.document import (
     DocumentResponse,
 )
 from services.document_service import DocumentService
+from schemas.document import DocumentListResponse
 
 
 router = APIRouter(prefix="/documents", tags=["Documents"])
@@ -39,7 +40,7 @@ async def create_document(
 
 @router.get(
     "",
-    response_model=list[DocumentResponse],
+    response_model=DocumentListResponse,
 )
 async def list_documents(
     page: int = Query(default=1, ge=1),
@@ -48,6 +49,17 @@ async def list_documents(
         default=None,
         alias="status",
         pattern="^(pending|processing|ready|failed)$",
+    ),
+    search: str | None = Query(default=None, max_length=200),
+    sort_by: str = Query(
+        default="createdAt",
+        alias="sortBy",
+        pattern="^(createdAt|title|chunkCount)$",
+    ),
+    sort_order: str = Query(
+        default="desc",
+        alias="sortOrder",
+        pattern="^(asc|desc)$",
     ),
     user=Depends(require_permission("documents:read")),
     db: Session = Depends(get_db),
@@ -58,8 +70,10 @@ async def list_documents(
         page=page,
         limit=limit,
         status=status_filter,
+        search=search,
+        sort_by=sort_by,
+        sort_order=sort_order,
     )
-
 
 @router.get(
     "/{document_id}",

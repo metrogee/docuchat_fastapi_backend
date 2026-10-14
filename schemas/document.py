@@ -17,8 +17,21 @@ class DocumentResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-
 class DocumentListQuery(BaseModel):
     page: int = Field(default=1, ge=1)
     limit: int = Field(default=20, ge=1, le=100)
     status: Literal["pending", "processing", "ready", "failed"] | None = None
+    search: str | None = Field(default=None, max_length=200)
+    sortBy: Literal["createdAt", "title", "chunkCount"] = "createdAt"
+    sortOrder: Literal["asc", "desc"] = "desc"
+
+
+class DocumentPaginationMeta(BaseModel):
+    page: int
+    limit: int
+    total: int
+
+
+class DocumentListResponse(BaseModel):
+    data: list[DocumentResponse]
+    meta: DocumentPaginationMeta
