@@ -236,9 +236,9 @@ def test_soft_deleted_document_is_rejected(client, test_db):
         headers=auth_headers(token),
     )
 
-    assert document_response.status_code == 201
+    assert document_response.status_code == 202
 
-    document_id = document_response.json()["id"]
+    document_id = document_response.json()["document"]["id"]
     document = test_db.get(Document, document_id)
 
     from datetime import datetime, timezone

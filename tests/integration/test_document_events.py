@@ -57,9 +57,9 @@ def test_document_event_failure_does_not_break_creation(
     finally:
         listeners[:] = original_listeners
 
-    assert response.status_code == 201, response.text
+    assert response.status_code == 202, response.text
 
-    document_id = response.json()["id"]
+    document_id = response.json()["document"]["id"]
 
     test_db.expire_all()
 
@@ -113,8 +113,8 @@ def test_document_deletion_creates_usage_log(client, test_db):
         headers=headers(token),
     )
 
-    assert create_response.status_code == 201
-    document_id = create_response.json()["id"]
+    assert create_response.status_code == 202
+    document_id = create_response.json()["document"]["id"]
 
     delete_response = client.delete(
         f"/api/v1/documents/{document_id}",
@@ -159,13 +159,13 @@ def test_document_event_failure_does_not_break_creation(
             headers=headers(token),
         )
 
-    assert response.status_code == 201
+    assert response.status_code == 202
 
     # The document should exist even if activity logging fails.
     from database.models import Document
 
     assert test_db.get(
-        Document, response.json()["id"]
+        Document, response.json()["document"]["id"]
     ) is not None
 
 def test_document_creation_creates_usage_log(client, test_db):
@@ -184,9 +184,9 @@ def test_document_creation_creates_usage_log(client, test_db):
         headers=headers(token),
     )
 
-    assert response.status_code == 201, response.text
+    assert response.status_code == 202, response.text
 
-    document_id = response.json()["id"]
+    document_id = response.json()["document"]["id"]
 
     user = test_db.scalar(
         select(User).where(

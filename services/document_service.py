@@ -8,6 +8,11 @@ from src.events import (
     EVENT_DOCUMENT_CREATED,
     EVENT_DOCUMENT_DELETED,
 )
+from queues.document_tasks import process_document
+from sqlalchemy import func, select
+from database.models import DocumentChunk
+from queues.celery_app import celery_app
+
 
 class DocumentService:
     def __init__(self):
@@ -27,6 +32,17 @@ class DocumentService:
             content=content,
         )
 
+        try:
+            job = process_document.apply_async(
+                args=[document.id, user_id],
+                queue="document-processing",
+                task_id=document.id,
+            )
+        except Exception:
+            # The document remains pending for recovery/requeueing.
+            # Do not report that processing was successfully queued.
+            raise
+
         event_emitter.emit(
             EVENT_DOCUMENT_CREATED,
             db=db,
@@ -36,7 +52,10 @@ class DocumentService:
             file_size_bytes=len(content.encode("utf-8")),
         )
 
-        return document
+        return {
+            "document": document,
+            "jobId": job.id,
+        }
 
     def get_document(
         self,
@@ -119,3 +138,63 @@ class DocumentService:
         )
 
         return deleted_document
+
+    def get_processing_status(
+        self,
+        db: Session,
+        document_id: str,
+        user_id: str,
+    ):
+        # Reuse existing ownership and admin permission checks.
+        document = self.get_document(
+            db=db,
+            document_id=document_id,
+            user_id=user_id,
+        )
+
+        # Count chunks saved for this document.
+        chunk_count = db.scalar(
+            select(func.count(DocumentChunk.id)).where(
+                DocumentChunk.document_id == document.id
+            )
+        ) or 0
+
+        status = document.status
+
+        # The Celery task ID is the document ID.
+        job = celery_app.AsyncResult(document.id)
+
+        if status == "ready":
+            progress = 100
+
+        elif status == "failed":
+            progress = 0
+
+        elif status == "pending":
+            progress = 0
+
+        elif status == "processing":
+            # The worker publishes progress metadata to Redis.
+            task_info = job.info
+
+            if isinstance(task_info, dict):
+                progress = task_info.get("progress", 10)
+            else:
+                progress = 10
+
+        else:
+            progress = 0
+
+        progress = max(0, min(100, int(progress)))
+
+        return {
+            "documentId": document.id,
+            "status": status,
+            "progress": progress,
+            "chunkCount": chunk_count,
+            "error": (
+                document.processing_error
+                if status == "failed"
+                else None
+            ),
+        }

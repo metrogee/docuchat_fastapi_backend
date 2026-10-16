@@ -31,8 +31,8 @@ def create_document(client, token, title):
         },
         headers=headers(token),
     )
-    assert response.status_code == 201, response.text
-    return response.json()["id"]
+    assert response.status_code == 202, response.text
+    return response.json()["document"]["id"]
 
 
 def test_document_search_sort_and_pagination(client):

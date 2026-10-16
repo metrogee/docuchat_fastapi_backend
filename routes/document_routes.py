@@ -11,6 +11,8 @@ from schemas.document import (
 )
 from services.document_service import DocumentService
 from schemas.document import DocumentListResponse
+from schemas.document import CreateDocumentResponse
+from schemas.document import DocumentProcessingStatusResponse
 
 
 router = APIRouter(prefix="/documents", tags=["Documents"])
@@ -20,8 +22,8 @@ document_service = DocumentService()
 
 @router.post(
     "",
-    response_model=DocumentResponse,
-    status_code=status.HTTP_201_CREATED,
+    response_model=CreateDocumentResponse,
+    status_code=status.HTTP_202_ACCEPTED,
 )
 async def create_document(
     request: CreateDocumentRequest,
@@ -76,6 +78,21 @@ async def list_documents(
     )
 
 @router.get(
+    "/{document_id}/processing-status",
+    response_model=DocumentProcessingStatusResponse,
+)
+async def get_document_processing_status(
+    document_id: UUID,
+    user=Depends(require_permission("documents:read")),
+    db: Session = Depends(get_db),
+):
+    return document_service.get_processing_status(
+        db=db,
+        document_id=str(document_id),
+        user_id=user.id,
+    )
+
+@router.get(
     "/{document_id}",
     response_model=DocumentResponse,
 )
@@ -123,3 +140,4 @@ async def delete_document(
             "message": "Document deleted successfully",
         },
     }
+

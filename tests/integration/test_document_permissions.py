@@ -30,9 +30,9 @@ def test_member_can_create_and_read_document(client):
         json={"title": "Test Document", "content": "Hello DocuChat"},
         headers=auth_headers(token),
     )
-    assert response.status_code == 201
+    assert response.status_code == 202
 
-    document_id = response.json()["id"]
+    document_id = response.json()["document"]["id"]
 
     response = client.get(
         f"/api/v1/documents/{document_id}",
@@ -66,9 +66,9 @@ def test_non_owner_receives_404(client):
         json={"title": "Private", "content": "Private content"},
         headers=auth_headers(owner_token),
     )
-    assert response.status_code == 201
+    assert response.status_code == 202
 
-    document_id = response.json()["id"]
+    document_id = response.json()["document"]["id"]
 
     response = client.get(
         f"/api/v1/documents/{document_id}",
@@ -101,9 +101,9 @@ def test_admin_can_read_other_users_document(client, test_db):
         json={"title": "Owner Document", "content": "Test content"},
         headers=auth_headers(owner_token),
     )
-    assert response.status_code == 201
+    assert response.status_code == 202
 
-    document_id = response.json()["id"]
+    document_id = response.json()["document"]["id"]
 
     response = client.get(
         f"/api/v1/documents/{document_id}",

@@ -70,3 +70,22 @@ def test_db():
         yield db
     finally:
         db.close()
+
+from unittest.mock import Mock
+
+from queues.document_tasks import process_document
+
+
+@pytest.fixture(autouse=True)
+def mock_document_queue(monkeypatch):
+    """Prevent tests from publishing real Celery jobs."""
+
+    def fake_apply_async(*args, **kwargs):
+        task_id = kwargs.get("task_id", "test-document-job")
+        return Mock(id=task_id)
+
+    monkeypatch.setattr(
+        process_document,
+        "apply_async",
+        fake_apply_async,
+    )

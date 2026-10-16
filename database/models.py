@@ -372,6 +372,10 @@ class Document(Base):
         back_populates="document",
         cascade="all, delete-orphan",
     )
+    processing_error: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
 
 class AuditLog(Base):
     __tablename__ = "audit_logs"

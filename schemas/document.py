@@ -35,3 +35,14 @@ class DocumentPaginationMeta(BaseModel):
 class DocumentListResponse(BaseModel):
     data: list[DocumentResponse]
     meta: DocumentPaginationMeta
+
+class CreateDocumentResponse(BaseModel):
+    document: DocumentResponse
+    jobId: str
+
+class DocumentProcessingStatusResponse(BaseModel):
+    documentId: str
+    status: str
+    progress: int
+    chunkCount: int
+    error: str | None = None
