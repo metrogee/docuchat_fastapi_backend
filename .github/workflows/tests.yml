@@ -1,3 +1,4 @@
+
 name: Tests
 
 on:
@@ -16,6 +17,9 @@ jobs:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/docuchat_test
       JWT_ACCESS_SECRET: ci-access-secret
       JWT_REFRESH_SECRET: ci-refresh-secret
+      REDIS_HOST: localhost
+      REDIS_PORT: "6379"
+
     services:
       postgres:
         image: postgres:16
@@ -30,6 +34,17 @@ jobs:
           --health-interval=10s
           --health-timeout=5s
           --health-retries=5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -38,9 +53,14 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.13"
+          cache: pip
 
       - name: Install dependencies
         run: pip install -r requirements.txt
+
+      - name: Verify Redis connection
+        run: |
+          python -c "from redis import Redis; assert Redis(host='localhost', port=6379).ping(); print('Redis connected')"
 
       - name: Run database migrations
         run: alembic upgrade head
@@ -49,7 +69,9 @@ jobs:
         run: pytest -v --cov=. --cov-report=term --cov-report=html
 
       - name: Upload coverage report
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: coverage-report
           path: htmlcov/
+          if-no-files-found: warn
