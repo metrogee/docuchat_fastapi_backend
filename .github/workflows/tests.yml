@@ -65,6 +65,9 @@ jobs:
       - name: Run database migrations
         run: alembic upgrade head
 
+      - name: Seed roles and permissions
+        run: python -m scripts.seed_rbac
+
       - name: Run tests with coverage
         run: pytest -v --cov=. --cov-report=term --cov-report=html
 
