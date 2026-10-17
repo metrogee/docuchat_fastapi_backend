@@ -33,3 +33,4 @@ celery[redis]==5.6.3
 redis==6.4.0
 flower==2.2.0
 pybreaker==1.4.1
+bleach==6.4.0

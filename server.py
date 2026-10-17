@@ -17,6 +17,9 @@ import rbac.cache_invalidation  # Register RBAC cache listeners
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
 from middleware.rate_limit import APIRateLimitMiddleware
+from middleware.security_headers import SecurityHeadersMiddleware
+import os
+from fastapi.middleware.cors import CORSMiddleware
 
 
 class AuthNoStoreMiddleware(BaseHTTPMiddleware):
@@ -31,6 +34,27 @@ class AuthNoStoreMiddleware(BaseHTTPMiddleware):
 
 app = FastAPI(title="Docuchat Backend", version="1.0.0")
 
+
+# Read permitted frontend origins from environment.
+# Multiple origins can be separated by commas.
+allowed_origins = [
+    origin.strip()
+    for origin in os.getenv(
+        "FRONTEND_URL",
+        "http://localhost:3001",
+    ).split(",")
+    if origin.strip()
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=allowed_origins,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PATCH", "DELETE"],
+    allow_headers=["Content-Type", "Authorization"],
+    max_age=86400,
+)
+
 app.add_middleware(AuthNoStoreMiddleware)
 app.add_middleware(APIRateLimitMiddleware)
 
@@ -43,6 +67,28 @@ app.add_exception_handler(
     Exception,
     unexpected_error_handler,
 )
+app.add_middleware(SecurityHeadersMiddleware)
+
+
+# CORS must be the outermost registered middleware.
+allowed_origins = [
+    origin.strip()
+    for origin in os.getenv(
+        "FRONTEND_URL",
+        "http://localhost:3001",
+    ).split(",")
+    if origin.strip()
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=allowed_origins,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PATCH", "DELETE"],
+    allow_headers=["Content-Type", "Authorization"],
+    max_age=86400,
+)
+
 
 # Register all application routes
 app.include_router(api_router)

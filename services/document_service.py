@@ -22,6 +22,7 @@ from cache.redis_cache import (
     cache_get_or_set,
     cache_delete,
 )
+from utils.sanitizer import sanitize_text
 
 logger = logging.getLogger(__name__)
 
@@ -37,10 +38,17 @@ class DocumentService:
         title: str,
         content: str,
     ):
+        clean_title = sanitize_text(title).strip()
+
+        if not clean_title:
+            raise ValueError(
+                "Document title cannot be empty after sanitization"
+            )
+
         document = self.document_repository.create(
             db=db,
             user_id=user_id,
-            title=title,
+            title=clean_title,
             content=content,
         )
 
