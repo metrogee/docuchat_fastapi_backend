@@ -1,4 +1,3 @@
-
 import logging
 
 from celery import states
@@ -16,6 +15,8 @@ from src.events import (
     event_emitter,
     EVENT_DOCUMENT_PROCESSED,
 )
+from redis.exceptions import RedisError
+from cache.redis_cache import cache_delete
 
 
 logger = logging.getLogger(__name__)
@@ -68,6 +69,7 @@ def process_document(self, document_id: str, user_id: str):
             document.processing_error = None
             content = document.content
             db.commit()
+            invalidate_document_metadata(document_id)
 
         # 2. Update processing progress.
         self.update_state(
@@ -144,6 +146,7 @@ def process_document(self, document_id: str, user_id: str):
                 document.status = "ready"
                 document.processing_error = None
                 db.commit()
+                invalidate_document_metadata(document_id)
 
             except Exception:
                 db.rollback()
@@ -225,6 +228,7 @@ def process_document(self, document_id: str, user_id: str):
                         document.status = "failed"
                         document.processing_error = str(exc)[:2000]
                         db.commit()
+                        invalidate_document_metadata(document_id)
                     else:
                         db.rollback()
 
@@ -252,3 +256,26 @@ def process_document(self, document_id: str, user_id: str):
 
         # Preserve Celery's FAILED task state.
         raise
+
+
+def invalidate_document_metadata(document_id: str):
+    """
+    Remove stale document metadata after a committed
+    processing status change.
+
+    Cache errors must not cause Celery to repeat
+    successful document processing.
+    """
+    try:
+        cache_delete(f"doc:{document_id}")
+
+        logger.info(
+            "Document metadata cache invalidated: %s",
+            document_id,
+        )
+
+    except RedisError:
+        logger.exception(
+            "Failed to invalidate document cache: %s",
+            document_id,
+        )

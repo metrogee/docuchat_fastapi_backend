@@ -2,7 +2,7 @@ from sqlalchemy import select
 from database.models import Role, UserRole
 
 from datetime import datetime, timedelta, timezone
-
+from utils.login_protection import LoginProtection
 from sqlalchemy.orm import Session
 
 from repositories.user_repository import UserRepository
@@ -27,6 +27,7 @@ class AuthService:
     def __init__(self):
         self.user_repository = UserRepository()
         self.refresh_token_repository = RefreshTokenRepository()
+        self.login_protection = LoginProtection()
 
     def register(
         self,
@@ -121,33 +122,65 @@ class AuthService:
             "refresh_token": refresh_token,
         }
 
+    
     def login(
-    self,
-    db: Session,
-    email: str,
-    password: str,
+        self,
+        db: Session,
+        email: str,
+        password: str,
     ):
-        user = self.user_repository.find_by_email(db, email)
+        normalised_email = email.strip().lower()
 
-        if not user or not verify_password(password, user.password_hash):
+        self.login_protection.check_allowed(
+            normalised_email
+        )
+
+        user = self.user_repository.find_by_email(
+            db,
+            normalised_email,
+        )
+
+        if (
+            not user
+            or not verify_password(
+                password,
+                user.password_hash,
+            )
+        ):
             event_emitter.emit(
                 EVENT_LOGIN_FAILED,
                 email=email,
             )
-            raise UnauthorizedError("Invalid email or password")
+
+            self.login_protection.record_failure(
+                normalised_email
+            )
+
+            raise UnauthorizedError(
+                "Invalid email or password"
+            )
 
         access_token = create_access_token(user.id)
         refresh_token = create_refresh_token(user.id)
 
-        refresh_token_hash = hash_refresh_token(refresh_token)
+        refresh_token_hash = hash_refresh_token(
+            refresh_token
+        )
 
-        expires_at = datetime.now(timezone.utc) + timedelta(days=7)
+        expires_at = (
+            datetime.now(timezone.utc)
+            + timedelta(days=7)
+        )
 
         self.refresh_token_repository.create(
             db,
             user.id,
             refresh_token_hash,
             expires_at,
+        )
+
+        self.login_protection.reset(
+            normalised_email
         )
 
         event_emitter.emit(
@@ -161,6 +194,7 @@ class AuthService:
             "access_token": access_token,
             "refresh_token": refresh_token,
         }
+
 
     def refresh(
     self,

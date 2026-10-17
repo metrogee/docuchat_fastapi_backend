@@ -187,3 +187,57 @@ def test_viewer_cannot_delete_document(client, test_db):
     )
 
     assert response.status_code == 403
+
+
+
+
+
+
+
+
+def test_document_get_supports_etag(client):
+    token = register_user(
+        client,
+        "ETag Tester",
+        "etag_document@example.com",
+    )
+
+    auth_headers = {
+        "Authorization": f"Bearer {token}"
+    }
+
+    response = client.post(
+        "/api/v1/documents",
+        headers=auth_headers,
+        json={
+            "title": "ETag Verification Document",
+            "content": "This document tests HTTP ETag caching.",
+        },
+    )
+
+    assert response.status_code == 202, response.text
+
+    document_id = response.json()["document"]["id"]
+    url = f"/api/v1/documents/{document_id}"
+
+    first = client.get(
+        url,
+        headers=auth_headers,
+    )
+
+    assert first.status_code == 200, first.text
+    assert "etag" in first.headers
+    assert first.headers["cache-control"] == (
+        "private, no-cache"
+    )
+
+    second = client.get(
+        url,
+        headers={
+            **auth_headers,
+            "If-None-Match": first.headers["etag"],
+        },
+    )
+
+    assert second.status_code == 304
+    assert second.content == b""

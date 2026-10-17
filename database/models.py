@@ -591,3 +591,57 @@ class UsageLog(Base):
         nullable=False,
     )
 
+
+class WebhookEvent(Base):
+    __tablename__ = "webhook_events"
+
+    id: Mapped[str] = mapped_column(
+        String(255),
+        primary_key=True,
+    )
+
+    provider: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+    )
+
+    event_type: Mapped[str] = mapped_column(
+        String(100),
+        nullable=False,
+    )
+
+    payload: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+    )
+
+    status: Mapped[str] = mapped_column(
+        String(20),
+        default="pending",
+        nullable=False,
+    )
+
+    received_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=datetime.utcnow,
+        nullable=False,
+    )
+
+    processed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+    __table_args__ = (
+        Index(
+            "ix_webhook_events_provider_type",
+            "provider",
+            "event_type",
+        ),
+    )
+
+    processing_started_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+

@@ -14,7 +14,11 @@ celery_app = Celery(
     "docuchat",
     broker=REDIS_URL,
     backend=REDIS_URL,
-    include=["queues.document_tasks"],
+    include=[
+        "queues.document_tasks",
+        "queues.webhook_tasks",
+        "queues.external_api_tasks",
+    ],
 )
 
 celery_app.conf.update(
@@ -40,3 +44,10 @@ celery_app.conf.update(
         }
     },
 )
+
+celery_app.conf.beat_schedule = {
+    "recover-stuck-webhooks": {
+        "task": "queues.webhook_tasks.recover_webhooks",
+        "schedule": 60.0,
+    },
+}

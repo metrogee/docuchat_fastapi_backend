@@ -14,6 +14,10 @@ from schemas.conversation import (
     SendMessageRequest,
     SendMessageResponse,
 )
+from fastapi import Request
+from utils.http_cache import conditional_json_response
+
+
 
 router = APIRouter(
     prefix="/conversations",
@@ -40,22 +44,28 @@ def create_conversation(
     )
 
 
-@router.get(
-    "",
-    response_model=ConversationListResponse,
-)
+
+@router.get("")
 def list_conversations(
+    request: Request,
     page: int = Query(default=1, ge=1),
     limit: int = Query(default=20, ge=1, le=100),
     user=Depends(require_permission("conversations:read")),
     db: Session = Depends(get_db),
 ):
-    return conversation_service.list_conversations(
+    result = conversation_service.list_conversations(
         db=db,
         user_id=user.id,
         page=page,
         limit=limit,
     )
+
+    return conditional_json_response(
+        request=request,
+        data=result,
+        cache_control="private, no-cache",
+    )
+
 
 @router.post(
     "/{conversation_id}/messages",

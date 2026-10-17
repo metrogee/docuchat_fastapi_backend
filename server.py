@@ -13,9 +13,26 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from database.database import get_db
+import rbac.cache_invalidation  # Register RBAC cache listeners
+from fastapi import Request
+from starlette.middleware.base import BaseHTTPMiddleware
+from middleware.rate_limit import APIRateLimitMiddleware
+
+
+class AuthNoStoreMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+
+        if request.url.path.startswith("/api/v1/auth"):
+            response.headers["Cache-Control"] = "no-store"
+
+        return response
 
 
 app = FastAPI(title="Docuchat Backend", version="1.0.0")
+
+app.add_middleware(AuthNoStoreMiddleware)
+app.add_middleware(APIRateLimitMiddleware)
 
 app.add_exception_handler(
     AppError,

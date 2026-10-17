@@ -5,9 +5,33 @@ from database.models import Conversation, Message
 from datetime import datetime, timezone
 from database.models import Document, UsageLog
 from utils.errors import NotFoundError
+import logging
 
+from fastapi.encoders import jsonable_encoder
+from redis.exceptions import RedisError
+
+from cache.redis_cache import (
+    CACHE_TTL,
+    cache_get_or_set,
+    cache_delete_pattern,
+)
+
+logger = logging.getLogger(__name__)
 
 class ConversationService:
+        
+    @staticmethod
+    def invalidate_conversation_cache(user_id: str):
+        try:
+            cache_delete_pattern(
+                f"conversations:{user_id}:*"
+            )
+        except RedisError:
+            logger.exception(
+                "Failed to invalidate conversation cache "
+                "for user %s",
+                user_id,
+            )
 
     def create_conversation(
         self,
@@ -29,9 +53,44 @@ class ConversationService:
             raise
 
         db.refresh(conversation)
+        self.invalidate_conversation_cache(user_id)
         return conversation
 
+    
     def list_conversations(
+        self,
+        db: Session,
+        user_id: str,
+        page: int = 1,
+        limit: int = 20,
+    ):
+        key = f"conversations:{user_id}:{page}:{limit}"
+
+        def fetch():
+            result = self._list_conversations_from_db(
+                db=db,
+                user_id=user_id,
+                page=page,
+                limit=limit,
+            )
+
+            return jsonable_encoder(result)
+
+        try:
+            return cache_get_or_set(
+                key=key,
+                ttl=CACHE_TTL["CONVERSATION_LIST"],
+                fetch_fn=fetch,
+            )
+
+        except RedisError:
+            logger.exception(
+                "Conversation cache unavailable"
+            )
+            return fetch()
+
+
+    def _list_conversations_from_db(
         self,
         db: Session,
         user_id: str,
@@ -184,8 +243,10 @@ class ConversationService:
 
         db.refresh(user_message)
         db.refresh(assistant_message)
+        self.invalidate_conversation_cache(user_id)
 
         return {
             "userMessage": user_message,
             "assistantMessage": assistant_message,
         }
+    

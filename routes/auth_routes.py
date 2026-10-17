@@ -12,6 +12,9 @@ from schemas.auth import (
     TokenResponse,
 )
 from services.auth_service import AuthService
+from redis.exceptions import RedisError
+from fastapi.responses import JSONResponse
+from utils.login_protection import LoginLockedError
 
 
 router = APIRouter(
@@ -89,6 +92,36 @@ async def login(data: LoginRequest, db: Session = Depends(get_db)):
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password",
         )
+    
+    except LoginLockedError as exc:
+        return JSONResponse(
+            status_code=429,
+            content={
+                "success": False,
+                "error": {
+                    "code": "LOGIN_RATE_LIMITED",
+                    "message": "Too many login attempts. Try again later.",
+                },
+            },
+            headers={
+                "Retry-After": str(exc.retry_after),
+                "Cache-Control": "no-store",
+            },
+        )
+
+    except RedisError:
+        return JSONResponse(
+            status_code=503,
+            content={
+                "success": False,
+                "error": {
+                    "code": "LOGIN_PROTECTION_UNAVAILABLE",
+                    "message": "Service temporarily unavailable",
+                },
+            },
+            headers={"Cache-Control": "no-store"},
+        )
+
 
 @router.post("/refresh", response_model=TokenResponse)
 async def refresh(

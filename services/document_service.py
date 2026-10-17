@@ -12,6 +12,18 @@ from queues.document_tasks import process_document
 from sqlalchemy import func, select
 from database.models import DocumentChunk
 from queues.celery_app import celery_app
+import logging
+
+from fastapi.encoders import jsonable_encoder
+from redis.exceptions import RedisError
+
+from cache.redis_cache import (
+    CACHE_TTL,
+    cache_get_or_set,
+    cache_delete,
+)
+
+logger = logging.getLogger(__name__)
 
 
 class DocumentService:
@@ -56,6 +68,71 @@ class DocumentService:
             "document": document,
             "jobId": job.id,
         }
+
+    
+    @staticmethod
+    def invalidate_document_cache(document_id: str):
+        try:
+            cache_delete(f"doc:{document_id}")
+        except RedisError:
+            logger.exception(
+                "Document cache invalidation failed: %s",
+                document_id,
+            )
+
+    def get_document_metadata(
+        self,
+        db: Session,
+        document_id: str,
+        user_id: str,
+    ):
+        """
+        Cached read for the document GET endpoint.
+
+        Cached records include ownership information.
+        User permissions are checked on every request.
+        """
+        key = f"doc:{document_id}"
+
+        def fetch():
+            document = self.document_repository.find_by_id(
+                db=db,
+                document_id=document_id,
+            )
+
+            if document is None:
+                raise NotFoundError("Document not found")
+
+            return jsonable_encoder({
+                column.key: getattr(document, column.key)
+                for column in document.__mapper__.columns
+            })
+
+        try:
+            metadata = cache_get_or_set(
+                key=key,
+                ttl=CACHE_TTL["DOCUMENT"],
+                fetch_fn=fetch,
+            )
+
+        except RedisError:
+            logger.exception(
+                "Document cache unavailable: %s",
+                document_id,
+            )
+            metadata = fetch()
+
+        if metadata.get("deleted_at") is not None:
+            raise NotFoundError("Document not found")
+
+        if metadata["user_id"] != user_id:
+            permissions = get_user_permissions(user_id, db)
+
+            if "users:manage" not in permissions:
+                raise NotFoundError("Document not found")
+
+        return metadata
+
 
     def get_document(
         self,
@@ -127,6 +204,8 @@ class DocumentService:
             document=document,
             deleted_by=user_id,
         )
+        
+        self.invalidate_document_cache(deleted_document.id)
 
         event_emitter.emit(
             EVENT_DOCUMENT_DELETED,

@@ -13,6 +13,8 @@ from services.document_service import DocumentService
 from schemas.document import DocumentListResponse
 from schemas.document import CreateDocumentResponse
 from schemas.document import DocumentProcessingStatusResponse
+from fastapi import Request
+from utils.http_cache import conditional_json_response
 
 
 router = APIRouter(prefix="/documents", tags=["Documents"])
@@ -92,21 +94,35 @@ async def get_document_processing_status(
         user_id=user.id,
     )
 
+
 @router.get(
     "/{document_id}",
     response_model=DocumentResponse,
 )
 async def get_document(
     document_id: UUID,
+    request: Request,
     user=Depends(require_permission("documents:read")),
     db: Session = Depends(get_db),
 ):
     try:
-        return document_service.get_document(
+        document = document_service.get_document_metadata(
             db=db,
             document_id=str(document_id),
             user_id=user.id,
         )
+
+        # Validate against the existing public schema.
+        validated = DocumentResponse.model_validate(
+            document
+        )
+
+        return conditional_json_response(
+            request=request,
+            data=validated.model_dump(mode="json"),
+            cache_control="private, no-cache",
+        )
+
     except ValueError:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
